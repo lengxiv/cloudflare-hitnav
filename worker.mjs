@@ -610,7 +610,7 @@ let cfgCache = { at: 0, data: null };
 const CACHE_TTL = 10 * 1000;
 
 function defaultConfig() {
-  return { lines: DEFAULT_LINES.slice(), announcement: "" };
+  return sanitizeConfig({ lines: DEFAULT_LINES, announcement: "" });
 }
 
 async function getConfig(env, { fresh = false } = {}) {
