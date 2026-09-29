@@ -112,6 +112,8 @@ node preview/api-check.mjs
 | --- | --- | --- |
 | `CONFIG` | KV 命名空间绑定 | 全部后台数据的存储,必需(后台) |
 | `ADMIN_PASSWORD` | 环境变量 / 机密 | 后台登录密码,建议使用随机长密码 |
+| `siteName` / `siteDesc` / `enterText` | 后台「前台文案」 | 站点名称、副标题、进入按钮文案,留空用默认 |
+| `autoRedirect` / `redirectDelay` | 后台「跳转设置」 | 自动跳转开关;延迟 0~60 秒,默认 1.6 |
 | `MAX_LINES` | 代码内常量 | 线路数量上限,默认 20 |
 | `SESSION_TTL` | 代码内常量 | 登录会话有效期,默认 7 天 |
 | `PING_TIMEOUT` / `USABLE_MS` | 前台脚本内常量 | 测速超时 5s;≤900ms 判为可用 |
