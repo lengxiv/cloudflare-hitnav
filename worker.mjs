@@ -382,6 +382,19 @@ button {
   justify-content: space-between;
   gap: 16px;
 }
+.admin-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+a.btn-ghost { text-decoration: none; }
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.card-wide { grid-column: 1 / -1; }
 .admin-row-head {
   display: flex;
   align-items: center;
@@ -1104,11 +1117,15 @@ ${THEME_SCRIPT}
         <h1 class="card-title">线路调度后台</h1>
         <p class="card-subtitle">保存后即时生效;KV 同步到全部节点可能有短暂延迟</p>
       </div>
-      <button type="button" class="btn-ghost" id="logoutBtn">退出登录</button>
+      <div class="admin-actions">
+        <a class="btn-ghost" href="/" target="_blank" rel="noopener">访问前台</a>
+        <button type="button" class="btn-ghost" id="logoutBtn">退出登录</button>
+      </div>
     </div>
 
     <div class="banner" id="adminBanner" role="status" aria-live="polite" hidden></div>
 
+    <div class="admin-grid">
     <section class="card">
       <h2 class="section-title">前台文案</h2>
       <div class="field" style="margin-top: 16px;">
@@ -1143,7 +1160,7 @@ ${THEME_SCRIPT}
       </div>
     </section>
 
-    <section class="card">
+    <section class="card card-wide">
       <h2 class="section-title">公告说明</h2>
       <div class="field" style="margin-top: 16px;">
         <label class="field-label" for="announceInput">访客打开调度页时展示的公告,留空则不显示;可换行</label>
@@ -1154,7 +1171,7 @@ ${THEME_SCRIPT}
       </div>
     </section>
 
-    <section class="card">
+    <section class="card card-wide">
       <div class="admin-row-head">
         <h2 class="section-title">线路管理</h2>
         <span class="toolbar-meta" id="lineCount"></span>
@@ -1165,6 +1182,7 @@ ${THEME_SCRIPT}
         <button type="button" class="btn-ghost" id="addBtn">添加线路</button>
       </div>
     </section>
+    </div>
   </div>
 </main>
 ${THEME_TOGGLE_HTML}
