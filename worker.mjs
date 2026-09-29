@@ -155,6 +155,7 @@ button {
   animation: rise var(--dur-normal) var(--ease) both;
   transition: background-color var(--dur-normal) var(--ease), border-color var(--dur-normal) var(--ease);
 }
+.card-head { text-align: center; }
 .card-title { font-size: 20px; font-weight: 700; }
 .card-subtitle { margin-top: 8px; font-size: 14px; color: var(--text-2); }
 .section-title { font-size: 17px; font-weight: 600; }
@@ -752,8 +753,10 @@ ${THEME_SCRIPT}
 <body>
 <main class="page">
   <section class="card" id="mainCard" aria-labelledby="cardTitle">
-    <h1 class="card-title" id="cardTitle">${siteName}</h1>
-    <p class="card-subtitle">${siteDesc}</p>
+    <div class="card-head">
+      <h1 class="card-title" id="cardTitle">${siteName}</h1>
+      <p class="card-subtitle">${siteDesc}</p>
+    </div>
 
     <noscript>
       <div class="banner banner-warn">当前浏览器未启用 JavaScript,无法检测线路</div>
