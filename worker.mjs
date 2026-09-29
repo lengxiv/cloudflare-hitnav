@@ -529,6 +529,15 @@ function normalizeUrl(raw) {
   }
 }
 
+const SITE_NAME_DEFAULT = "智能线路调度";
+const SITE_DESC_DEFAULT = "自动检测最快线路,稍后自动进入";
+const ENTER_TEXT_DEFAULT = "进入主站";
+
+function pickText(input, key, max, fallback) {
+  const v = input && typeof input[key] === "string" ? input[key].trim().slice(0, max) : "";
+  return v || fallback;
+}
+
 function sanitizeConfig(input) {
   const rawLines = input && Array.isArray(input.lines) ? input.lines : [];
   const seen = new Set();
@@ -542,7 +551,13 @@ function sanitizeConfig(input) {
   }
   const announcement =
     input && typeof input.announcement === "string" ? input.announcement.slice(0, MAX_NOTICE) : "";
-  return { lines, announcement };
+  return {
+    lines,
+    announcement,
+    siteName: pickText(input, "siteName", 40, SITE_NAME_DEFAULT),
+    siteDesc: pickText(input, "siteDesc", 120, SITE_DESC_DEFAULT),
+    enterText: pickText(input, "enterText", 20, ENTER_TEXT_DEFAULT)
+  };
 }
 
 async function hmacHex(key, msg) {
@@ -653,6 +668,9 @@ async function handleHome(request, env) {
   const cfg = await getConfig(env);
   const lines = cfg.lines;
   const hasLines = lines.length > 0;
+  const siteName = escHtml(cfg.siteName);
+  const siteDesc = escHtml(cfg.siteDesc);
+  const enterText = escHtml(cfg.enterText);
 
   const noticeBanner = cfg.announcement
     ? `<div class="banner banner-info">${escHtml(cfg.announcement).replace(/\n/g, "<br>")}</div>`
@@ -686,15 +704,15 @@ async function handleHome(request, env) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>智能线路调度</title>
+<title>${siteName}</title>
 ${THEME_SCRIPT}
 <style>${SHARED_CSS}</style>
 </head>
 <body>
 <main class="page">
   <section class="card" id="mainCard" aria-labelledby="cardTitle">
-    <h1 class="card-title" id="cardTitle">线路智能匹配</h1>
-    <p class="card-subtitle">自动检测最快线路,稍后自动进入</p>
+    <h1 class="card-title" id="cardTitle">${siteName}</h1>
+    <p class="card-subtitle">${siteDesc}</p>
 
     <noscript>
       <div class="banner banner-warn">当前浏览器未启用 JavaScript,无法检测线路</div>
@@ -710,7 +728,7 @@ ${hasLines ? `
     <ul class="list" id="list">${rows}</ul>
 
     <div class="actions" id="actionsWrap" hidden>
-      <button type="button" class="btn-primary" id="enter" hidden>进入主站</button>
+      <button type="button" class="btn-primary" id="enter" hidden>${enterText}</button>
     </div>` : emptyBanner}
   </section>
 </main>
@@ -1045,6 +1063,25 @@ ${THEME_SCRIPT}
     <div class="banner" id="adminBanner" role="status" aria-live="polite" hidden></div>
 
     <section class="card">
+      <h2 class="section-title">前台文案</h2>
+      <div class="field" style="margin-top: 16px;">
+        <label class="field-label" for="siteNameInput">站点名称(浏览器标题与页面主标题),留空用默认</label>
+        <input class="input" id="siteNameInput" type="text" maxlength="40" placeholder="${SITE_NAME_DEFAULT}" autocomplete="off">
+      </div>
+      <div class="field" style="margin-top: 16px;">
+        <label class="field-label" for="siteDescInput">前台说明(主标题下的副标题),留空用默认</label>
+        <input class="input" id="siteDescInput" type="text" maxlength="120" placeholder="${SITE_DESC_DEFAULT}" autocomplete="off">
+      </div>
+      <div class="field" style="margin-top: 16px;">
+        <label class="field-label" for="enterTextInput">进入按钮文案,留空用默认</label>
+        <input class="input" id="enterTextInput" type="text" maxlength="20" placeholder="${ENTER_TEXT_DEFAULT}" autocomplete="off">
+      </div>
+      <div class="card-actions">
+        <button type="button" class="btn-primary" id="saveTexts">保存文案</button>
+      </div>
+    </section>
+
+    <section class="card">
       <h2 class="section-title">公告说明</h2>
       <div class="field" style="margin-top: 16px;">
         <label class="field-label" for="announceInput">访客打开调度页时展示的公告,留空则不显示;可换行</label>
@@ -1116,13 +1153,23 @@ ${THEME_BIND_JS}
       }).join("");
     }
     countEl.textContent = "共 " + cfg.lines.length + " 条线路";
+    $("siteNameInput").value = cfg.siteName;
+    $("siteDescInput").value = cfg.siteDesc;
+    $("enterTextInput").value = cfg.enterText;
+    announceEl.value = cfg.announcement;
   }
 
   function save(msg) {
     return fetch("/admin/api/config", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ lines: cfg.lines, announcement: announceEl.value })
+      body: JSON.stringify({
+        lines: cfg.lines,
+        announcement: announceEl.value,
+        siteName: $("siteNameInput").value,
+        siteDesc: $("siteDescInput").value,
+        enterText: $("enterTextInput").value
+      })
     })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
@@ -1198,6 +1245,7 @@ ${THEME_BIND_JS}
   });
 
   $("saveAnnounce").addEventListener("click", function () { save("公告已保存"); });
+  $("saveTexts").addEventListener("click", function () { save("前台文案已保存"); });
 
   $("logoutBtn").addEventListener("click", function () {
     fetch("/admin/api/logout", { method: "POST" }).finally(function () { location.reload(); });

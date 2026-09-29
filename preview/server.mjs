@@ -1,5 +1,4 @@
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import worker from "../worker.mjs";
 
@@ -13,6 +12,9 @@ store.set(
       "https://example.org",
       "https://example.net"
     ],
+    siteName: "",
+    siteDesc: "",
+    enterText: "",
     announcement:
       "示例公告:页面会自动测速并跳转至最快线路;如全部超时,可点击「重新检测」或稍后再试。"
   })
@@ -25,9 +27,7 @@ const env = {
   }
 };
 
-const previewHtml = await readFile(new URL("./preview.html", import.meta.url));
-
-// ?mock:注入 stub fetch(550ms 响应)并拦下 1600ms 自动跳转,便于确定性截图
+// ?mock:注入 stub fetch(550ms 响应)并拦下 1600ms 自动跳转,便于确定性演示
 const mockScript = `<script>
 window.fetch = function () {
   return new Promise(function (resolve) {
@@ -46,16 +46,6 @@ window.fetch = function () {
 createServer(async (req, res) => {
   const u = new URL(req.url, "http://preview.local");
 
-  // 公共页用静态快照,支持 ?mock
-  if (u.pathname === "/") {
-    let body = previewHtml.toString("utf8");
-    if (u.searchParams.has("mock")) body = body.replace("<body>", "<body>" + mockScript);
-    res.writeHead(200, { "content-type": "text/html;charset=UTF-8", "cache-control": "no-store" });
-    res.end(body);
-    return;
-  }
-
-  // 其余路径(含 /admin 全套)直接交给 Worker 处理
   const chunks = [];
   for await (const c of req) chunks.push(c);
   const body = Buffer.concat(chunks);
@@ -68,7 +58,15 @@ createServer(async (req, res) => {
   if (body.length) init.body = body;
 
   const workerRes = await worker.fetch(new Request(u.href, init), env);
-  const out = Buffer.from(await workerRes.arrayBuffer());
+  let out = Buffer.from(await workerRes.arrayBuffer());
+
+  // 公共页 + ?mock:注入演示脚本
+  if (u.searchParams.has("mock")) {
+    const text = out.toString("utf8");
+    if (text.includes("<body>")) {
+      out = Buffer.from(text.replace("<body>", "<body>" + mockScript), "utf8");
+    }
+  }
 
   const headersOut = {};
   workerRes.headers.forEach((v, k) => { headersOut[k] = v; });
