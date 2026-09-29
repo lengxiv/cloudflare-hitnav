@@ -48,13 +48,17 @@ const reorder = await worker.fetch(
     method: "POST",
     headers: { "content-type": "application/json", cookie },
     body: JSON.stringify({
-      lines: ["https://c.com", "https://a.com", "https://b.com"],
+      lines: [
+        { url: "https://c.com", name: "备线" },
+        { url: "https://a.com", name: "主线" },
+        "https://b.com"
+      ],
       announcement: "ok"
     })
   }),
   env
 );
-console.log("reorder:", reorder.status, JSON.stringify((await reorder.json()).config));
+console.log("reorder + name:", reorder.status, JSON.stringify((await reorder.json()).config));
 
 const dedupe = await worker.fetch(
   new Request("http://x/admin/api/config", {

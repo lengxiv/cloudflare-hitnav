@@ -11,6 +11,7 @@
 const CONFIG_KEY = "dispatch_config";
 const MAX_LINES = 20;
 const MAX_NOTICE = 2000;
+const MAX_LINE_NAME = 20;
 const SESSION_TTL = 7 * 24 * 60 * 60 * 1000; // 登录会话 7 天
 const COOKIE_NAME = "admin_token";
 // 占位示例线路:部署后请在后台配置,或直接替换为你的线路
@@ -444,7 +445,13 @@ button {
 .modal-actions {
   display: flex;
   justify-content: center;
+  gap: 8px;
   margin-top: 20px;
+}
+.modal .field { text-align: left; }
+.modal-actions .btn-primary {
+  width: auto;
+  padding: 8px 24px;
 }
 
 /* ---------- 响应式 ---------- */
@@ -543,10 +550,18 @@ function sanitizeConfig(input) {
   const seen = new Set();
   const lines = [];
   for (const raw of rawLines) {
-    const norm = normalizeUrl(raw);
-    if (!norm || seen.has(norm)) continue;
-    seen.add(norm);
-    lines.push(norm);
+    // 兼容旧格式(纯字符串)与新格式({ url, name })
+    let url = null;
+    let name = "";
+    if (typeof raw === "string") {
+      url = normalizeUrl(raw);
+    } else if (raw && typeof raw === "object") {
+      url = normalizeUrl(raw.url);
+      if (typeof raw.name === "string") name = raw.name.trim().slice(0, MAX_LINE_NAME);
+    }
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    lines.push({ url, name });
     if (lines.length >= MAX_LINES) break;
   }
   const announcement =
@@ -677,12 +692,13 @@ async function handleHome(request, env) {
     : "";
 
   const rows = lines
-    .map((site, i) => {
-      const host = new URL(site).host;
+    .map((item, i) => {
+      const host = new URL(item.url).host;
+      const label = escHtml(item.name || `线路 ${i + 1}`);
       return `
         <li class="row" style="--i:${i}">
           <div class="row-main">
-            <span class="row-title">线路 ${i + 1}</span>
+            <span class="row-title">${label}</span>
             <span class="row-right">
               <span class="time" id="time${i}"><span class="skeleton skeleton-time"></span></span>
               <button type="button" class="btn-ghost" id="enter${i}" hidden>进入</button>
@@ -830,9 +846,9 @@ ${THEME_TOGGLE_HTML}
     countEl.textContent = "正在检测线路…";
     listEl.setAttribute("aria-busy", "true");
 
-    var jobs = sites.map(function (url, i) {
+    var jobs = sites.map(function (item, i) {
       setRowLoading(i);
-      return ping(url).then(function (ms) { return { i: i, url: url, ms: ms }; });
+      return ping(item.url).then(function (ms) { return { i: i, url: item.url, ms: ms }; });
     });
 
     Promise.all(jobs).then(function (results) {
@@ -871,10 +887,10 @@ ${THEME_TOGGLE_HTML}
     });
   }
 
-  sites.forEach(function (url, i) {
+  sites.forEach(function (item, i) {
     $("enter" + i).addEventListener("click", function () {
       clearTimeout(redirectTimer);
-      go(url + tg);
+      go(item.url + tg);
     });
   });
 
@@ -1106,6 +1122,24 @@ ${THEME_SCRIPT}
   </div>
 </main>
 ${THEME_TOGGLE_HTML}
+
+<div class="modal-mask" id="editModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+    <div class="modal-title" id="editTitle">编辑线路</div>
+    <div class="field" style="margin-top: 20px;">
+      <label class="field-label" for="editName">线路名称(可选,留空显示「线路 N」)</label>
+      <input class="input" id="editName" type="text" maxlength="20" placeholder="例如:电信线路" autocomplete="off">
+    </div>
+    <div class="field" style="margin-top: 16px;">
+      <label class="field-label" for="editUrl">线路地址</label>
+      <input class="input" id="editUrl" type="text" inputmode="url" placeholder="https://www.example.com" autocomplete="off">
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="editCancel">取消</button>
+      <button type="button" class="btn-primary" id="editSave">保存</button>
+    </div>
+  </div>
+</div>
 <script>
 ${THEME_BIND_JS}
 (function () {
@@ -1114,10 +1148,26 @@ ${THEME_BIND_JS}
   var MAX_LINES = ${MAX_LINES};
 
   function $(id) { return document.getElementById(id); }
+  function show(el) { if (el) el.hidden = false; }
+  function hide(el) { if (el) el.hidden = true; }
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
+  }
+  function normalizeLine(raw) {
+    raw = String(raw || "").trim();
+    if (!raw) return null;
+    var lower = raw.toLowerCase();
+    var candidate = (lower.indexOf("http://") === 0 || lower.indexOf("https://") === 0) ? raw : "https://" + raw;
+    try {
+      var u = new URL(candidate);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+      if (!u.hostname || u.hostname.indexOf(".") === -1) return null;
+      return u.protocol + "//" + u.host;
+    } catch (e) {
+      return null;
+    }
   }
 
   var bannerEl = $("adminBanner");
@@ -1139,16 +1189,18 @@ ${THEME_BIND_JS}
     if (!cfg.lines.length) {
       listEl.innerHTML = '<li class="empty">暂无线路<br>使用下方表单添加第一条线路</li>';
     } else {
-      listEl.innerHTML = cfg.lines.map(function (url, i) {
+      listEl.innerHTML = cfg.lines.map(function (item, i) {
+        var label = item.name || "线路 " + (i + 1);
         return '<li class="row" style="--i:' + i + '">'
           + '<div class="row-main">'
-          + '<span class="row-title">线路 ' + (i + 1) + '</span>'
+          + '<span class="row-title">' + esc(label) + '</span>'
           + '<span class="row-right">'
+          + '<button type="button" class="btn-ghost" data-act="edit" data-i="' + i + '">编辑</button>'
           + '<button type="button" class="btn-ghost" data-act="up" data-i="' + i + '"' + (i === 0 ? " disabled" : "") + '>上移</button>'
           + '<button type="button" class="btn-ghost" data-act="down" data-i="' + i + '"' + (i === cfg.lines.length - 1 ? " disabled" : "") + '>下移</button>'
           + '<button type="button" class="btn-ghost" data-act="del" data-i="' + i + '">删除</button>'
           + '</span></div>'
-          + '<div class="row-sub"><span class="row-meta">' + esc(url) + '</span></div>'
+          + '<div class="row-sub"><span class="row-meta">' + esc(item.url) + '</span></div>'
           + '</li>';
       }).join("");
     }
@@ -1206,7 +1258,9 @@ ${THEME_BIND_JS}
     if (!btn || btn.disabled) return;
     var act = btn.getAttribute("data-act");
     var i = Number(btn.getAttribute("data-i"));
-    if (act === "up" && i > 0) {
+    if (act === "edit") {
+      openEdit(i);
+    } else if (act === "up" && i > 0) {
       cfg.lines.splice(i - 1, 0, cfg.lines.splice(i, 1)[0]);
       save("线路顺序已更新");
     } else if (act === "down" && i < cfg.lines.length - 1) {
@@ -1222,26 +1276,48 @@ ${THEME_BIND_JS}
   $("addBtn").addEventListener("click", function () {
     var raw = addInput.value.trim();
     if (!raw) { showBanner("warn", "请输入线路地址"); return; }
-    var lower = raw.toLowerCase();
-    var candidate = (lower.indexOf("http://") === 0 || lower.indexOf("https://") === 0) ? raw : "https://" + raw;
-    var norm;
-    try {
-      var u = new URL(candidate);
-      if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error("bad");
-      if (!u.hostname || u.hostname.indexOf(".") === -1) throw new Error("bad");
-      norm = u.protocol + "//" + u.host;
-    } catch (e) {
-      showBanner("danger", "线路地址无效,请检查后重试");
-      return;
-    }
-    if (cfg.lines.indexOf(norm) > -1) { showBanner("warn", "该线路已存在"); return; }
+    var norm = normalizeLine(raw);
+    if (!norm) { showBanner("danger", "线路地址无效,请检查后重试"); return; }
+    var dup = cfg.lines.some(function (l) { return l.url === norm; });
+    if (dup) { showBanner("warn", "该线路已存在"); return; }
     if (cfg.lines.length >= MAX_LINES) { showBanner("warn", "最多支持 " + MAX_LINES + " 条线路"); return; }
-    cfg.lines.push(norm);
+    cfg.lines.push({ url: norm, name: "" });
     addInput.value = "";
     save("已添加线路");
   });
   addInput.addEventListener("keydown", function (e) {
     if (e.key === "Enter") { e.preventDefault(); $("addBtn").click(); }
+  });
+
+  // 编辑线路:弹窗内修改名称与地址
+  var editIndex = -1;
+  function openEdit(i) {
+    editIndex = i;
+    $("editName").value = cfg.lines[i].name || "";
+    $("editUrl").value = cfg.lines[i].url;
+    show($("editModal"));
+  }
+  function closeEdit() {
+    editIndex = -1;
+    hide($("editModal"));
+  }
+  $("editCancel").addEventListener("click", closeEdit);
+  $("editModal").addEventListener("click", function (e) {
+    if (e.target === $("editModal")) closeEdit();
+  });
+  $("editSave").addEventListener("click", function () {
+    if (editIndex < 0) return;
+    var name = $("editName").value.trim().slice(0, 20);
+    var norm = normalizeLine($("editUrl").value);
+    if (!norm) { showBanner("danger", "线路地址无效,请检查后重试"); return; }
+    var dup = cfg.lines.some(function (l, idx) { return idx !== editIndex && l.url === norm; });
+    if (dup) { showBanner("warn", "该地址已存在于其他线路"); return; }
+    cfg.lines[editIndex] = { url: norm, name: name };
+    closeEdit();
+    save("已更新线路");
+  });
+  $("editUrl").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); $("editSave").click(); }
   });
 
   $("saveAnnounce").addEventListener("click", function () { save("公告已保存"); });

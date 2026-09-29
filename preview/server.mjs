@@ -8,9 +8,9 @@ store.set(
   "dispatch_config",
   JSON.stringify({
     lines: [
-      "https://example.com",
-      "https://example.org",
-      "https://example.net"
+      { url: "https://example.com", name: "主线路" },
+      { url: "https://example.org", name: "" },
+      { url: "https://example.net", name: "" }
     ],
     siteName: "",
     siteDesc: "",

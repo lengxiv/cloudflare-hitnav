@@ -7,9 +7,9 @@ store.set(
   "dispatch_config",
   JSON.stringify({
     lines: [
-      "https://example.com",
-      "https://example.org",
-      "https://example.net"
+      { url: "https://example.com", name: "主线路" },
+      { url: "https://example.org", name: "" },
+      { url: "https://example.net", name: "" }
     ],
     announcement:
       "示例公告:页面会自动测速并跳转至最快线路;如全部超时,可点击「重新检测」或稍后再试。"
