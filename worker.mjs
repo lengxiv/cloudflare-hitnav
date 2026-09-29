@@ -12,6 +12,8 @@ const CONFIG_KEY = "dispatch_config";
 const MAX_LINES = 20;
 const MAX_NOTICE = 2000;
 const MAX_LINE_NAME = 20;
+const AUTO_REDIRECT_DEFAULT = true; // 是否自动跳转
+const REDIRECT_DELAY_DEFAULT = 1.6; // 自动跳转延迟(秒)
 const SESSION_TTL = 7 * 24 * 60 * 60 * 1000; // 登录会话 7 天
 const COOKIE_NAME = "admin_token";
 // 占位示例线路:部署后请在后台配置,或直接替换为你的线路
@@ -339,6 +341,18 @@ button {
   transition: border-color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
 }
 .input::placeholder { color: var(--text-3); }
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.check {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex: none;
+}
 .textarea {
   min-height: 112px;
   resize: vertical;
@@ -566,9 +580,20 @@ function sanitizeConfig(input) {
   }
   const announcement =
     input && typeof input.announcement === "string" ? input.announcement.slice(0, MAX_NOTICE) : "";
+  const autoRedirect =
+    input && typeof input.autoRedirect === "boolean" ? input.autoRedirect : AUTO_REDIRECT_DEFAULT;
+  let redirectDelay =
+    input && typeof input.redirectDelay === "number" && Number.isFinite(input.redirectDelay)
+      ? input.redirectDelay
+      : REDIRECT_DELAY_DEFAULT;
+  if (redirectDelay < 0) redirectDelay = 0;
+  if (redirectDelay > 60) redirectDelay = 60;
+  redirectDelay = Math.round(redirectDelay * 100) / 100;
   return {
     lines,
     announcement,
+    autoRedirect,
+    redirectDelay,
     siteName: pickText(input, "siteName", 40, SITE_NAME_DEFAULT),
     siteDesc: pickText(input, "siteDesc", 120, SITE_DESC_DEFAULT),
     enterText: pickText(input, "enterText", 20, ENTER_TEXT_DEFAULT)
@@ -767,7 +792,8 @@ ${THEME_TOGGLE_HTML}
   var tg = "${tg}";
   var PING_TIMEOUT = 5000;
   var USABLE_MS = 900;
-  var REDIRECT_DELAY = 1600;
+  var AUTO_REDIRECT = ${cfg.autoRedirect};
+  var REDIRECT_DELAY = ${Math.round(cfg.redirectDelay * 1000)};
 
   function $(id) { return document.getElementById(id); }
   function show(el) { if (el) el.hidden = false; }
@@ -876,11 +902,13 @@ ${THEME_TOGGLE_HTML}
       retryBtn.disabled = false;
 
       if (bestUrl) {
-        banner("success", "已锁定最佳节点 · " + Math.round(results[0].ms) + "ms,即将自动进入");
+        banner("success", "已锁定最佳节点 · " + Math.round(results[0].ms) + "ms" + (AUTO_REDIRECT ? ",即将自动进入" : ",请点击下方按钮进入"));
         enterBtn.disabled = false;
         show(actionsWrap);
         show(enterBtn);
-        redirectTimer = setTimeout(function () { go(bestUrl); }, REDIRECT_DELAY);
+        if (AUTO_REDIRECT) {
+          redirectTimer = setTimeout(function () { go(bestUrl); }, REDIRECT_DELAY);
+        }
       } else {
         banner("warn", "当前所有线路响应缓慢,请稍后再试");
       }
@@ -1098,6 +1126,21 @@ ${THEME_SCRIPT}
     </section>
 
     <section class="card">
+      <h2 class="section-title">跳转设置</h2>
+      <div class="check-row" style="margin-top: 16px;">
+        <input type="checkbox" id="autoRedirectInput" class="check">
+        <label class="field-label" for="autoRedirectInput">测速完成后自动跳转到最快线路(关闭后访客手动点击进入)</label>
+      </div>
+      <div class="field" style="margin-top: 16px;">
+        <label class="field-label" for="redirectDelayInput">自动跳转延迟(秒,0~60,留空用默认 1.6)</label>
+        <input class="input" id="redirectDelayInput" type="number" min="0" max="60" step="0.1" inputmode="decimal" placeholder="1.6">
+      </div>
+      <div class="card-actions">
+        <button type="button" class="btn-primary" id="saveRedirect">保存跳转设置</button>
+      </div>
+    </section>
+
+    <section class="card">
       <h2 class="section-title">公告说明</h2>
       <div class="field" style="margin-top: 16px;">
         <label class="field-label" for="announceInput">访客打开调度页时展示的公告,留空则不显示;可换行</label>
@@ -1208,6 +1251,8 @@ ${THEME_BIND_JS}
     $("siteNameInput").value = cfg.siteName;
     $("siteDescInput").value = cfg.siteDesc;
     $("enterTextInput").value = cfg.enterText;
+    $("autoRedirectInput").checked = cfg.autoRedirect;
+    $("redirectDelayInput").value = cfg.redirectDelay;
     announceEl.value = cfg.announcement;
   }
 
@@ -1220,7 +1265,9 @@ ${THEME_BIND_JS}
         announcement: announceEl.value,
         siteName: $("siteNameInput").value,
         siteDesc: $("siteDescInput").value,
-        enterText: $("enterTextInput").value
+        enterText: $("enterTextInput").value,
+        autoRedirect: $("autoRedirectInput").checked,
+        redirectDelay: parseFloat($("redirectDelayInput").value)
       })
     })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
@@ -1322,6 +1369,7 @@ ${THEME_BIND_JS}
 
   $("saveAnnounce").addEventListener("click", function () { save("公告已保存"); });
   $("saveTexts").addEventListener("click", function () { save("前台文案已保存"); });
+  $("saveRedirect").addEventListener("click", function () { save("跳转设置已保存"); });
 
   $("logoutBtn").addEventListener("click", function () {
     fetch("/admin/api/logout", { method: "POST" }).finally(function () { location.reload(); });

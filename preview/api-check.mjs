@@ -53,7 +53,9 @@ const reorder = await worker.fetch(
         { url: "https://a.com", name: "主线" },
         "https://b.com"
       ],
-      announcement: "ok"
+      announcement: "ok",
+      autoRedirect: false,
+      redirectDelay: 5
     })
   }),
   env
