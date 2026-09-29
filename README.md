@@ -4,6 +4,16 @@
 
 > 前端为手写 CSS 的「毛玻璃卡片 + 中性色」设计系统:暗色默认、亮暗双主题、语义色仅用于状态标识,详见文末[设计系统](#设计系统)。
 
+## 界面预览
+
+| 前台 · 暗色 | 前台 · 亮色 |
+| --- | --- |
+| ![前台暗色](docs/home-dark.png) | ![前台亮色](docs/home-light.png) |
+
+| 后台管理 | 编辑线路 |
+| --- | --- |
+| ![后台管理](docs/admin.png) | ![编辑线路](docs/edit-line.png) |
+
 ## 一键部署
 
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/lengxiv/cloudflare-hitnav)
