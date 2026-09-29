@@ -4,6 +4,16 @@
 
 > 前端为手写 CSS 的「毛玻璃卡片 + 中性色」设计系统:暗色默认、亮暗双主题、语义色仅用于状态标识,详见文末[设计系统](#设计系统)。
 
+## 一键部署
+
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/lengxiv/cloudflare-hitnav)
+
+点击按钮 → 登录 GitHub 并授权 → Cloudflare 会自动拉取本仓库、创建 Worker 并开通 KV 命名空间(绑定 `CONFIG`)。
+
+部署完成后**必须**做一件事:进入该 Worker 的 **设置 → 变量和机密**,添加变量 `ADMIN_PASSWORD`(类型选「机密」),否则后台不可用。之后访问 `https://你的域名/admin` 即可登录。
+
+> 若部署流程未自动创建 KV,按下方「方式二」手动绑定一次即可。
+
 ## 功能特性
 
 **前台 `/`**
@@ -26,7 +36,11 @@
 
 ## 部署
 
-### 方式一:Cloudflare 控制台(推荐,零工具)
+### 方式一:一键部署
+
+见上方「一键部署」按钮,适合最快上手。
+
+### 方式二:Cloudflare 控制台(手动粘贴)
 
 1. 控制台 → **Workers 和 Pages** → 创建 Worker,把 [`worker.mjs`](./worker.mjs) 的全部内容粘贴进编辑器并部署;
 2. **存储和数据库 → KV** → 创建一个命名空间(例如 `dispatch-config`);
@@ -36,7 +50,7 @@
 
 > 不绑定 KV 时前台照常运行,使用代码内的占位示例线路(example.com / net / org),仅后台不可用;部署后请在后台配置你自己的线路。
 
-### 方式二:Wrangler CLI
+### 方式三:Wrangler CLI
 
 ```bash
 npm install -g wrangler

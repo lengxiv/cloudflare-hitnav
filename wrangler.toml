@@ -2,10 +2,11 @@ name = "cloudflare-hitnav"
 main = "worker.mjs"
 compatibility_date = "2026-09-01"
 
-# 部署前:先执行 `wrangler kv namespace create CONFIG`,
-# 把返回的 id 填到下面,否则后台不可用(前台会用内置默认线路)
+# KV 绑定:
+#   - 「Deploy to Cloudflare」一键部署会自动创建命名空间并回填 id,无需改动
+#   - 手动 wrangler 部署:先执行 `wrangler kv namespace create CONFIG`,
+#     把返回的 id 填到下面,否则 `wrangler deploy` 会报错
 [[kv_namespaces]]
 binding = "CONFIG"
-id = "TODO_替换为你的KV命名空间ID"
 
 # 管理密码不写在这里,执行 `wrangler secret put ADMIN_PASSWORD` 配置
