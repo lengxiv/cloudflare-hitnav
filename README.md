@@ -23,6 +23,7 @@
 部署完成后**必须**做一件事:进入该 Worker 的 **设置 → 变量和机密**,添加变量 `ADMIN_PASSWORD`(类型选「机密」),否则后台不可用。之后访问 `https://你的域名/admin` 即可登录。
 
 > 若部署流程未自动创建 KV,按下方「方式二」手动绑定一次即可。
+> 若你 **fork 后部署到自己的账户**:请先清空 `wrangler.toml` 中 `[[kv_namespaces]]` 的 `id`,让流程自动创建。
 
 ## 功能特性
 
@@ -75,6 +76,16 @@ wrangler secret put ADMIN_PASSWORD
 
 wrangler deploy
 ```
+
+## Git 自动部署(可选)
+
+把 GitHub 仓库绑定到 Worker 后,每次 `git push` 会自动构建并部署:
+
+1. 控制台 → **Workers 和 Pages** → `cloudflare-hitnav` → **设置 → 构建 → 连接 Git 仓库**;
+2. 选择 GitHub,按提示安装 **Cloudflare Workers and Pages** GitHub App 并授权 `lengxiv/cloudflare-hitnav`;
+3. 部署命令保持默认 `npx wrangler deploy`,分支 `main`,保存即可。
+
+绑定后改代码 → push → 一两分钟内自动上线,无需手动重新部署。`wrangler.toml` 已指向当前 KV 命名空间,自动部署不会影响后台数据。
 
 ## 本地预览
 
