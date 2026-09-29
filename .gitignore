@@ -1,0 +1,13 @@
+# 预览脚本生成的快照(可随时用 preview/preview.mjs 重新生成)
+preview/preview.html
+preview/preview-admin.html
+preview/preview-admin-login.html
+
+# 依赖与工具
+node_modules/
+.wrangler/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
