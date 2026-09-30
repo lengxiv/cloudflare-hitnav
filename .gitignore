@@ -7,6 +7,13 @@ preview/preview-admin-login.html
 node_modules/
 .wrangler/
 
+# 本地机密与私密审计记录:wrangler dev 会把 ADMIN_PASSWORD 写进 .dev.vars
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+AUDIT.md
+
 # 系统文件
 .DS_Store
 Thumbs.db

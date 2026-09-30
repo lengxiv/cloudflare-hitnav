@@ -30,19 +30,24 @@
 **前台 `/`**
 
 - 并行测速全部线路(请求各站点 `favicon.ico`,5 秒超时),自动锁定最快节点并跳转
-- 每条可用线路提供「进入」按钮,可手动选择;工具栏支持「重新检测」
-- 线路 300ms 内标记「最优」,900ms 内为「可用」,否则「超时」
+- 每条**可达**线路都提供「进入」按钮,可手动选择;工具栏支持「重新检测」
+- 速度分档:最快的一条标「最优」,<900ms 标「可用」,≥900ms 但可达标「较慢」,无响应标「超时」——「较慢」的线路同样可以点击进入,不会把访客困在无路可走的状态
+- 「进入按钮文案」对主按钮和每条线路的按钮同时生效,行内按钮附带线路名以便区分
 - 后台配置的公告以 info 横幅展示,支持多行
 - 暗色为默认主题,右上角 40px 圆形按钮切换亮/暗,偏好写入 localStorage
 - 微信 / QQ 内置浏览器自动弹窗引导「在浏览器中打开」
 - 加载使用骨架屏动画,尊重 `prefers-reduced-motion`,键盘焦点可见
+- 内联 SVG favicon(不再为 `/favicon.ico` 返回一整页 HTML);未知路径返回真正的 404
+- 配置读取失败或数据损坏时**停止自动跳转**并显示故障提示,不会把访客送往占位域名
 
 **后台 `/admin`**
 
 - 管理密码登录,HMAC-SHA256 签名 Cookie 会话(7 天有效)
 - 线路管理:添加(自动补 `https://`、去重、去路径、上限 20 条)、编辑(名称与地址,走弹窗)、删除(两击确认)、上移 / 下移排序;线路名称留空时前台显示「线路 N」
-- 公告说明:多行文本,保存后前台立即生效
+- 公告说明:多行文本,保存后在当前节点即时生效(KV 同步到其他节点可能有短暂延迟)
 - 跳转设置:自动跳转开关与延迟秒数(0~60,默认 1.6 秒);关闭后访客手动点击进入
+- 保存走串行化写入:同一时刻只允许一次保存,失败时回滚界面并保留已输入内容,不会出现「提示成功但实际没存上」
+- 保存接口是 patch 语义:只覆盖请求里出现的字段,漏传字段不会把其余配置重置为默认值
 - 全部操作即时保存,横幅反馈成功 / 失败
 - 未绑定 KV 或未设置密码时,后台显示配置引导页
 
@@ -95,15 +100,15 @@ wrangler deploy
 node preview/server.mjs
 ```
 
-- <http://127.0.0.1:8791/> — 前台(真实测速)
+- <http://127.0.0.1:8791/> — 前台(真实测速,由 Worker 直出,后台改完刷新即可看到)
 - <http://127.0.0.1:8791/?mock> — 前台(模拟全部线路 550ms 可达,演示自动跳转)
 - <http://127.0.0.1:8791/admin> — 后台(登录密码 `test1234`)
-- <http://127.0.0.1:8791/live> — 由 Worker 直出的前台,后台修改后可实时验证
 
-接口自检脚本:
+接口与跳转行为自检脚本,逐项断言、失败以非 0 退出,可直接挂 CI:
 
 ```bash
-node preview/api-check.mjs
+node preview/api-check.mjs        # 登录 / 鉴权 / 配置读写 / 路由 / 响应头
+node preview/redirect-check.mjs   # 跳转开关、延迟、配置不可用时不得跳转
 ```
 
 ## 配置参考
@@ -116,7 +121,7 @@ node preview/api-check.mjs
 | `autoRedirect` / `redirectDelay` | 后台「跳转设置」 | 自动跳转开关;延迟 0~60 秒,默认 1.6 |
 | `MAX_LINES` | 代码内常量 | 线路数量上限,默认 20 |
 | `SESSION_TTL` | 代码内常量 | 登录会话有效期,默认 7 天 |
-| `PING_TIMEOUT` / `USABLE_MS` | 前台脚本内常量 | 测速超时 5s;≤900ms 判为可用 |
+| `PING_TIMEOUT` / `USABLE_MS` | 前台脚本内常量 | 测速超时 5s;<900ms 判为「可用」,≥900ms 但可达判为「较慢」(仍可进入),无响应判为「超时」 |
 
 ## 后台 API
 
@@ -124,19 +129,30 @@ node preview/api-check.mjs
 | --- | --- | --- |
 | `/admin/api/login` | POST | `{ "password": "..." }`,成功下发会话 Cookie |
 | `/admin/api/logout` | POST | 注销会话 |
-| `/admin/api/config` | POST | 保存 `{ "lines": [...], "announcement": "..." }`,需登录 |
+| `/admin/api/config` | POST | **patch 语义**:只覆盖请求里出现的字段(例如只传 `{ "announcement": "..." }`),需登录 |
+
+三个接口都要求 `Content-Type: application/json` 且来源同源(`Sec-Fetch-Site: same-origin`,或 `Origin` 与自身一致),否则返回 415 / 403。请求体不是 JSON 对象、或字段类型不对,返回 400 且不改动任何数据。
 
 ## 目录结构
 
 ```
 cloudflare-hitnav/
-├── worker.mjs               # Worker 全部代码(前台 + 后台 + 样式)
-├── wrangler.toml            # Wrangler 部署配置(KV 绑定需填 namespace id)
+├── worker.mjs                     # Worker 全部代码(前台 + 后台 + 样式)
+├── wrangler.toml                  # Wrangler 部署配置(KV 绑定需填 namespace id)
+├── docs/                          # README 引用的界面截图
 └── preview/
-    ├── server.mjs           # 本地预览服务器(模拟 KV)
-    ├── preview.mjs          # 生成三个页面的静态快照
-    └── api-check.mjs        # 后台接口自检
+    ├── server.mjs                 # 本地预览服务器(模拟 KV + 会话)
+    ├── preview.mjs                # 生成三个页面的静态快照
+    ├── api-check.mjs              # 后台接口自检(逐项断言)
+    └── redirect-check.mjs         # 跳转与降级行为自检(逐项断言)
 ```
+
+## 安全说明
+
+- `ADMIN_PASSWORD` 是唯一凭证,请使用随机长密码。登录接口**没有**失败次数限制,弱口令仍可被暴力破解 —— 建议在 Cloudflare 控制台加一条针对 `/admin/api/login` 的 Rate limiting 规则。
+- 会话 Cookie 为 `HttpOnly; Secure; SameSite=Strict`,7 天有效。登出只清除 Cookie,无法在服务端提前作废;轮换 `ADMIN_PASSWORD` 会让全部既有会话立即失效。
+- 所有状态变更接口都会校验来源与 `Content-Type`;HTML 响应带 `frame-ancestors 'none'`、`nosniff`、`no-referrer`。尚未启用严格 `script-src`(需要给内联脚本加 nonce)。
+- 配置读取失败或数据损坏时,前台停止自动跳转并显示故障提示,不会把访客送往占位域名。
 
 ## 设计系统
 

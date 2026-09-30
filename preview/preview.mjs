@@ -45,11 +45,14 @@ writeFileSync(
 const loginRes = await worker.fetch(
   new Request(base + "/admin/api/login", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", origin: base },
     body: JSON.stringify({ password: "test1234" })
   }),
   env
 );
+if (loginRes.status !== 200) {
+  throw new Error("预览登录失败,状态码 " + loginRes.status);
+}
 const cookie = (loginRes.headers.get("set-cookie") || "").split(";")[0];
 writeFileSync(
   new URL("./preview-admin.html", import.meta.url),

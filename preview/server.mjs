@@ -43,39 +43,50 @@ window.fetch = function () {
 })();
 </script>`;
 
+const NO_BODY_METHODS = new Set(["GET", "HEAD"]);
+
 createServer(async (req, res) => {
-  const u = new URL(req.url, "http://preview.local");
+  // 必须沿用真实 Host:Worker 的同源校验会比较 Origin 与请求 URL 的 host,
+  // 写死成 preview.local 会让浏览器发来的 Origin 校验失败,后台直接不可用。
+  const host = req.headers.host || "preview.local";
+  const u = new URL(req.url, "http://" + host);
 
-  const chunks = [];
-  for await (const c of req) chunks.push(c);
-  const body = Buffer.concat(chunks);
+  try {
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    const body = Buffer.concat(chunks);
 
-  const headers = new Headers();
-  for (const [k, v] of Object.entries(req.headers)) {
-    if (v != null) headers.set(k, Array.isArray(v) ? v.join(",") : String(v));
-  }
-  const init = { method: req.method, headers };
-  if (body.length) init.body = body;
-
-  const workerRes = await worker.fetch(new Request(u.href, init), env);
-  let out = Buffer.from(await workerRes.arrayBuffer());
-
-  // 公共页 + ?mock:注入演示脚本
-  if (u.searchParams.has("mock")) {
-    const text = out.toString("utf8");
-    if (text.includes("<body>")) {
-      out = Buffer.from(text.replace("<body>", "<body>" + mockScript), "utf8");
+    const headers = new Headers();
+    for (const [k, v] of Object.entries(req.headers)) {
+      if (v != null) headers.set(k, Array.isArray(v) ? v.join(",") : String(v));
     }
-  }
+    const init = { method: req.method, headers };
+    // GET/HEAD 带 body 会让 new Request 抛 TypeError;未捕获时会直接终止本进程
+    if (body.length && !NO_BODY_METHODS.has(req.method)) init.body = body;
 
-  const headersOut = {};
-  workerRes.headers.forEach((v, k) => { headersOut[k] = v; });
-  const cookies = workerRes.headers.getSetCookie ? workerRes.headers.getSetCookie() : [];
-  if (cookies.length) {
-    // 本地预览是 http,去掉 Secure 以便浏览器接受会话 Cookie
-    headersOut["set-cookie"] = cookies.map((c) => c.replace(/;\s*Secure/i, ""));
-  }
+    const workerRes = await worker.fetch(new Request(u.href, init), env);
+    let out = Buffer.from(await workerRes.arrayBuffer());
 
-  res.writeHead(workerRes.status, headersOut);
-  res.end(out);
+    // ?mock 只注入前台:注入到 /admin 会把后台的 fetch 换成桩,登录与保存全部失败
+    if (u.searchParams.has("mock") && !u.pathname.startsWith("/admin")) {
+      const text = out.toString("utf8");
+      if (text.includes("<body>")) {
+        out = Buffer.from(text.replace("<body>", "<body>" + mockScript), "utf8");
+      }
+    }
+
+    const headersOut = {};
+    workerRes.headers.forEach((v, k) => { headersOut[k] = v; });
+    const cookies = workerRes.headers.getSetCookie ? workerRes.headers.getSetCookie() : [];
+    if (cookies.length) {
+      // 本地预览是 http,去掉 Secure 以便浏览器接受会话 Cookie
+      headersOut["set-cookie"] = cookies.map((c) => c.replace(/;\s*Secure/i, ""));
+    }
+
+    res.writeHead(workerRes.status, headersOut);
+    res.end(req.method === "HEAD" ? undefined : out);
+  } catch (err) {
+    res.writeHead(500, { "content-type": "text/plain;charset=UTF-8" });
+    res.end("preview server error: " + ((err && err.message) || String(err)));
+  }
 }).listen(8791, "127.0.0.1", () => console.log("serving http://127.0.0.1:8791/"));
